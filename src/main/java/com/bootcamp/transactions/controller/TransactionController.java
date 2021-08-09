@@ -2,7 +2,6 @@ package com.bootcamp.transactions.controller;
 
 import com.bootcamp.transactions.bean.RequestTransactionBean;
 import com.bootcamp.transactions.service.TransactionService;
-import com.bootcamp.transactions.service.impl.TransactionServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

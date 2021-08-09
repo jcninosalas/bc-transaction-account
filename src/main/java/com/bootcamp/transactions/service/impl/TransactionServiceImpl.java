@@ -46,6 +46,9 @@ public class TransactionServiceImpl implements TransactionService {
                         case "Saving":
                             return this.createTransactionSaving(type, bean, accountOnly, move);
 
+                        case "Fixed":
+                            return this.createTransactionFixed(type, bean, accountOnly, move);
+
                         default: return Mono.empty();
                     }
                 });
@@ -149,6 +152,32 @@ public class TransactionServiceImpl implements TransactionService {
                         new Date(), Arrays.asList(move),
                         (Integer) accountOnly.get("limitMovement") - 1))
                 );
+
+            default:
+                return Mono.empty();
+        }
+    }
+
+    public Mono<TransactionEntity> createTransactionFixed(String type, RequestTransactionBean bean,
+                                                          Map<String, Object> accountOnly, Movement move){
+        switch (type){
+            case "Retiro":
+                if((Integer) accountOnly.get("amountTotal") >= bean.getAmount().intValue()){
+                    return transactionRepository.findByDocumentNumberAndAccountNumber(
+                            bean.getDocumentNumber(), bean.getNumberAccount()
+                    ).switchIfEmpty(transactionRepository.save(new TransactionEntity(
+                            bean.getDocumentNumber(), bean.getNumberAccount(),
+                            (Integer) accountOnly.get("amountTotal") - bean.getAmount().doubleValue(),
+                            new Date(), Arrays.asList(move))));
+                }
+
+            case "Deposito":
+                return transactionRepository.findByDocumentNumberAndAccountNumber(
+                            bean.getDocumentNumber(), bean.getNumberAccount()
+                    ).switchIfEmpty(transactionRepository.save(new TransactionEntity(
+                            bean.getDocumentNumber(), bean.getNumberAccount(),
+                            (Integer) accountOnly.get("amountTotal") + bean.getAmount().doubleValue(),
+                            new Date(), Arrays.asList(move))));
 
             default:
                 return Mono.empty();
