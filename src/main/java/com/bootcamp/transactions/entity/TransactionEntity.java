@@ -21,6 +21,7 @@ public class TransactionEntity
     private String documentNumber;
     private String accountNumber;
     private Double amount;
+    private Integer limitMovement;
 
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "dd-MM-yyyy HH:mm:ss")
     private Date createdAt;
@@ -36,5 +37,14 @@ public class TransactionEntity
         this.amount = amount;
         this.createdAt = createdAt;
         this.movements = movements;
+    }
+
+    public TransactionEntity(String documentNumber, String accountNumber, Double amount, Date createdAt, List<Movement> movements, Integer limitMovement) {
+        this.documentNumber = documentNumber;
+        this.accountNumber = accountNumber;
+        this.amount = amount;
+        this.createdAt = createdAt;
+        this.movements = movements;
+        this.limitMovement = limitMovement;
     }
 }

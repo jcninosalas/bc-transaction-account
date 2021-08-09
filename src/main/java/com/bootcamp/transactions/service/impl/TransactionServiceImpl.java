@@ -39,46 +39,119 @@ public class TransactionServiceImpl implements TransactionService {
 
                     Movement move = new Movement(type, bean.getAmount(), new Date());
 
-                    if(type.equals("Retiro") && (Integer) accountOnly.get("amountTotal") >= bean.getAmount().intValue()){
-                        return transactionRepository.findByDocumentNumberAndAccountNumber(
-                                bean.getDocumentNumber(), bean.getNumberAccount()
-                        ).switchIfEmpty(transactionRepository.save(new TransactionEntity(
-                                bean.getDocumentNumber(), bean.getNumberAccount(),
-                                (Double) accountOnly.get("amountTotal") - bean.getAmount().intValue(),
-                                new Date(), Arrays.asList(move))));
+                    switch ((String) accountOnly.get("type")){
+                        case "Current":
+                            return this.createTransactionCurrent(type, bean, accountOnly, move);
+
+                        case "Saving":
+                            return this.createTransactionSaving(type, bean, accountOnly, move);
+
+                        default: return Mono.empty();
                     }
-                    else if(type.equals("Deposito")){
-                        return transactionRepository.findByDocumentNumberAndAccountNumber(
-                                bean.getDocumentNumber(), bean.getNumberAccount()
-                        ).flatMap(transactionEntity -> {
+                });
+    }
+
+    public Mono<TransactionEntity> createTransactionCurrent(String type, RequestTransactionBean bean,
+                                                            Map<String, Object> accountOnly, Movement move){
+        switch (type){
+            case "Retiro":
+                if((Integer) accountOnly.get("amountTotal") >= bean.getAmount().intValue()){
+                    return transactionRepository.findByDocumentNumberAndAccountNumber(
+                            bean.getDocumentNumber(), bean.getNumberAccount()
+                    ).switchIfEmpty(transactionRepository.save(new TransactionEntity(
+                            bean.getDocumentNumber(), bean.getNumberAccount(),
+                            (Double) accountOnly.get("amountTotal") - bean.getAmount().intValue(),
+                            new Date(), Arrays.asList(move))));
+                }
+                else{
+                    return transactionRepository.findByDocumentNumberAndAccountNumber(
+                            bean.getDocumentNumber(), bean.getNumberAccount()
+                    ).flatMap(transactionEntity -> {
+                        if(transactionEntity.getAmount() >= bean.getAmount().intValue()){
                             transactionEntity.setModifiedAt(new Date());
-                            transactionEntity.setAmount(transactionEntity.getAmount() + bean.getAmount().intValue());
+                            transactionEntity.setAmount(transactionEntity.getAmount() - bean.getAmount().intValue());
                             transactionEntity.getMovements().add(move);
 
                             return transactionRepository.save(transactionEntity);
-                        }).switchIfEmpty(transactionRepository.save(new TransactionEntity(
-                                bean.getDocumentNumber(), bean.getNumberAccount(),
-                                (Integer) accountOnly.get("amountTotal") + bean.getAmount().doubleValue(),
-                                new Date(), Arrays.asList(move))));
-                    }
-                    else if(type.equals("Retiro")){
-                        return transactionRepository.findByDocumentNumberAndAccountNumber(
-                                bean.getDocumentNumber(), bean.getNumberAccount()
-                        ).flatMap(transactionEntity -> {
-                            if(transactionEntity.getAmount() >= bean.getAmount().intValue()){
-                                transactionEntity.setModifiedAt(new Date());
-                                transactionEntity.setAmount(transactionEntity.getAmount() - bean.getAmount().intValue());
-                                transactionEntity.getMovements().add(move);
+                        }
 
-                                return transactionRepository.save(transactionEntity);
-                            }
-
-                            return Mono.empty();
-                        });
-                    }
-                    else
                         return Mono.empty();
+                    });
+                }
 
-                });
+            case "Deposito":
+                return transactionRepository.findByDocumentNumberAndAccountNumber(
+                        bean.getDocumentNumber(), bean.getNumberAccount()
+                ).flatMap(transactionEntity -> {
+                    transactionEntity.setModifiedAt(new Date());
+                    transactionEntity.setAmount(transactionEntity.getAmount() + bean.getAmount().intValue());
+                    transactionEntity.getMovements().add(move);
+
+                    return transactionRepository.save(transactionEntity);
+                }).switchIfEmpty(transactionRepository.save(new TransactionEntity(
+                        bean.getDocumentNumber(), bean.getNumberAccount(),
+                        (Integer) accountOnly.get("amountTotal") + bean.getAmount().doubleValue(),
+                        new Date(), Arrays.asList(move))));
+
+            default:
+                return Mono.empty();
+        }
+    }
+
+    public Mono<TransactionEntity> createTransactionSaving(String type, RequestTransactionBean bean,
+                                                           Map<String, Object> accountOnly, Movement move){
+        switch (type){
+            case "Retiro":
+                if((Integer) accountOnly.get("amountTotal") >= bean.getAmount().intValue()){
+                    return transactionRepository.findByDocumentNumberAndAccountNumber(
+                            bean.getDocumentNumber(), bean.getNumberAccount()
+                    ).switchIfEmpty(transactionRepository.save(new TransactionEntity(
+                            bean.getDocumentNumber(), bean.getNumberAccount(),
+                            (Double) accountOnly.get("amountTotal") - bean.getAmount().intValue(),
+                            new Date(), Arrays.asList(move),
+                            (Integer) accountOnly.get("limitMovement") - 1)));
+                }
+                else{
+                    return transactionRepository.findByDocumentNumberAndAccountNumber(
+                            bean.getDocumentNumber(), bean.getNumberAccount()
+                    ).flatMap(transactionEntity -> {
+                        if(transactionEntity.getAmount() >= bean.getAmount().intValue() &&
+                                transactionEntity.getLimitMovement() > 0){
+                            transactionEntity.setModifiedAt(new Date());
+                            transactionEntity.setAmount(transactionEntity.getAmount() - bean.getAmount().intValue());
+                            transactionEntity.getMovements().add(move);
+                            transactionEntity.setLimitMovement(transactionEntity.getLimitMovement() - 1);
+
+                            return transactionRepository.save(transactionEntity);
+                        }
+
+                        return Mono.empty();
+                    });
+                }
+            case "Deposito":
+                return transactionRepository.findByDocumentNumberAndAccountNumber(
+                        bean.getDocumentNumber(), bean.getNumberAccount()
+                ).flatMap(transactionEntity -> {
+                    if(transactionEntity.getLimitMovement() > 0){
+                        transactionEntity.setModifiedAt(new Date());
+                        transactionEntity.setAmount(transactionEntity.getAmount() + bean.getAmount().intValue());
+                        transactionEntity.getMovements().add(move);
+                        transactionEntity.setLimitMovement(transactionEntity.getLimitMovement() - 1);
+
+                        return transactionRepository.save(transactionEntity);
+                    }
+
+                    return transactionRepository.findById(transactionEntity.get_id());
+
+                }).switchIfEmpty(transactionRepository.save(new TransactionEntity(
+                        bean.getDocumentNumber(), bean.getNumberAccount(),
+                        (Integer) accountOnly.get("amountTotal") + bean.getAmount().doubleValue(),
+                        new Date(), Arrays.asList(move),
+                        (Integer) accountOnly.get("limitMovement") - 1))
+                );
+
+            default:
+                return Mono.empty();
+        }
     }
 }
