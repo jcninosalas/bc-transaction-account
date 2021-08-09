@@ -65,11 +65,15 @@ public class TransactionServiceImpl implements TransactionService {
                         return transactionRepository.findByDocumentNumberAndAccountNumber(
                                 bean.getDocumentNumber(), bean.getNumberAccount()
                         ).flatMap(transactionEntity -> {
-                            transactionEntity.setModifiedAt(new Date());
-                            transactionEntity.setAmount(transactionEntity.getAmount() - bean.getAmount().intValue());
-                            transactionEntity.getMovements().add(move);
+                            if(transactionEntity.getAmount() >= bean.getAmount().intValue()){
+                                transactionEntity.setModifiedAt(new Date());
+                                transactionEntity.setAmount(transactionEntity.getAmount() - bean.getAmount().intValue());
+                                transactionEntity.getMovements().add(move);
 
-                            return transactionRepository.save(transactionEntity);
+                                return transactionRepository.save(transactionEntity);
+                            }
+
+                            return Mono.empty();
                         });
                     }
                     else
